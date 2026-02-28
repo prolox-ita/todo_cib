@@ -5,170 +5,208 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Diagramma</title>
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
+    * { margin:0; padding:0; box-sizing:border-box; }
+    html,body { width:100%; height:100%; overflow:hidden; background:#0000ff; user-select:none; font-family:sans-serif; }
+    #canvas { width:100%; height:100%; position:relative; }
+    #svg-layer { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
 
-    html, body {
-      width: 100%; height: 100%;
-      overflow: hidden;
-      background: #0000ff;
-      user-select: none;
-      font-family: sans-serif;
-    }
-
-    #canvas { width: 100%; height: 100%; position: relative; }
-
-    #svg-layer {
-      position: absolute; inset: 0;
-      width: 100%; height: 100%;
-      pointer-events: none;
-    }
-
-    /* ── Box ── */
+    /* ── Box shell ── */
     .box {
-      position: absolute;
-      width: 140px; height: 64px;
-      background: #ffffff;
-      border-radius: 16px;
-      border: 2px solid #cccccc;
-      cursor: move;
-      display: flex; align-items: center; justify-content: center;
-      padding: 10px 18px;
-      font-size: 14px; font-weight: 500; color: #111;
-      box-shadow: 0 4px 14px rgba(0,0,0,0.25);
-      z-index: 2; overflow: visible;
+      position:absolute; min-width:140px;
+      background:#fff; border-radius:16px; border:2px solid #ccc;
+      cursor:move;
+      display:flex; flex-direction:column; align-items:stretch;
+      font-size:14px; font-weight:500; color:#111;
+      box-shadow:0 4px 14px rgba(0,0,0,.25);
+      z-index:2; overflow:visible;
     }
+    .box.source-selected { box-shadow:0 0 0 3px rgba(0,230,118,.55), 0 4px 14px rgba(0,0,0,.25); }
 
-    .box span { text-align: center; word-break: break-word; pointer-events: none; }
-
-    .box.source-selected {
-      box-shadow: 0 0 0 3px rgba(0,230,118,0.55), 0 4px 14px rgba(0,0,0,0.25);
+    /* ── Header ── */
+    .box-header {
+      min-height:46px; padding:8px 20px;
+      display:flex; align-items:center; justify-content:center;
+      cursor:move;
     }
+    .box-header span { text-align:center; word-break:break-word; pointer-events:none; }
+    .box.expanded .box-header { border-bottom:1px solid rgba(0,0,0,.08); }
+
+    /* ── Body (expanded only) ── */
+    .box-body { display:none; flex-direction:column; gap:0; }
+    .box.expanded .box-body { display:flex; }
+
+    .box-items { display:flex; flex-direction:column; gap:7px; padding:10px 10px 6px; max-height:260px; overflow-y:auto; }
+
+    /* add-bar */
+    .box-add-bar {
+      display:flex; gap:5px; flex-wrap:wrap; justify-content:center;
+      padding:7px 10px 8px; border-top:1px solid rgba(0,0,0,.07);
+    }
+    .add-type-btn {
+      padding:4px 9px; border:none; border-radius:7px;
+      background:rgba(0,0,0,.07); color:#444;
+      cursor:pointer; font-size:12px; font-family:inherit;
+      transition:background .15s;
+    }
+    .add-type-btn:hover { background:rgba(0,0,0,.15); }
+
+    /* ── Footer (expand toggle + resize) ── */
+    .box-footer {
+      height:18px; display:flex; align-items:center;
+      border-top:1px solid transparent;
+      opacity:0; transition:opacity .15s;
+    }
+    .box:hover .box-footer,
+    .box.expanded .box-footer { opacity:1; }
+    .box.expanded .box-footer { border-top-color:rgba(0,0,0,.07); }
+
+    .expand-toggle {
+      flex:1; height:100%; cursor:pointer;
+      display:flex; align-items:center; justify-content:center;
+      color:#bbb; font-size:9px; letter-spacing:1px;
+      border-radius:0 0 0 14px;
+      transition:background .12s, color .12s;
+    }
+    .expand-toggle:hover { background:rgba(0,0,0,.05); color:#777; }
+
+    .resize-handle {
+      width:22px; height:18px; flex-shrink:0;
+      cursor:se-resize; pointer-events:all;
+      border-radius:0 0 14px 0;
+      display:flex; align-items:flex-end; justify-content:flex-end;
+      padding:0 4px 3px 0; color:rgba(0,0,0,.25); font-size:12px;
+      transition:background .12s;
+    }
+    .resize-handle:hover { background:rgba(0,0,0,.05); color:rgba(0,0,0,.5); }
+    .resize-handle::after { content:'⋱'; }
 
     /* ── Connection handles ── */
     .handle {
-      position: absolute;
-      width: 14px; height: 14px;
-      background: #ffaa00; border: 2px solid #fff;
-      border-radius: 50%; cursor: crosshair;
-      pointer-events: all; opacity: 0;
-      transition: opacity 0.15s; z-index: 5;
+      position:absolute; width:14px; height:14px;
+      background:#ffaa00; border:2px solid #fff; border-radius:50%;
+      cursor:crosshair; pointer-events:all;
+      opacity:0; transition:opacity .15s; z-index:5;
     }
-    .box:hover .handle { opacity: 1; }
-    .handle.top    { top: -8px;    left: 50%; transform: translateX(-50%); }
-    .handle.bottom { bottom: -8px; left: 50%; transform: translateX(-50%); }
-    .handle.left   { left: -8px;   top: 50%;  transform: translateY(-50%); }
-    .handle.right  { right: -8px;  top: 50%;  transform: translateY(-50%); }
+    .box:hover .handle { opacity:1; }
+    .handle.top    { top:-8px;    left:50%; transform:translateX(-50%); }
+    .handle.bottom { bottom:-8px; left:50%; transform:translateX(-50%); }
+    .handle.left   { left:-8px;   top:50%;  transform:translateY(-50%); }
+    .handle.right  { right:-8px;  top:50%;  transform:translateY(-50%); }
 
-    /* ── Resize handle ── */
-    .resize-handle {
-      position: absolute; bottom: 5px; right: 5px;
-      width: 13px; height: 13px;
-      cursor: se-resize; pointer-events: all;
-      opacity: 0; transition: opacity 0.15s; z-index: 6;
-    }
-    .box:hover .resize-handle { opacity: 1; }
-    .resize-handle::before {
-      content: ''; position: absolute; inset: 0;
-      background-image:
-        radial-gradient(circle, rgba(0,0,0,0.35) 1.5px, transparent 1.5px),
-        radial-gradient(circle, rgba(0,0,0,0.35) 1.5px, transparent 1.5px),
-        radial-gradient(circle, rgba(0,0,0,0.35) 1.5px, transparent 1.5px),
-        radial-gradient(circle, rgba(0,0,0,0.35) 1.5px, transparent 1.5px),
-        radial-gradient(circle, rgba(0,0,0,0.35) 1.5px, transparent 1.5px),
-        radial-gradient(circle, rgba(0,0,0,0.35) 1.5px, transparent 1.5px);
-      background-size: 5px 5px;
-      background-position: 0 8px, 4px 8px, 8px 8px, 4px 4px, 8px 4px, 8px 0;
-      background-repeat: no-repeat;
-    }
-
-    /* ── Color button (top-right of box) ── */
+    /* ── Color button (top-left, outside) ── */
     .color-btn {
-      position: absolute; top: -8px; right: 12px;
-      width: 17px; height: 17px;
-      border-radius: 50%;
-      background: #cccccc; border: 2.5px solid #fff;
-      cursor: pointer; pointer-events: all;
-      opacity: 0; transition: opacity 0.15s; z-index: 5;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+      position:absolute; top:-8px; left:12px;
+      width:17px; height:17px; border-radius:50%;
+      background:#ccc; border:2.5px solid #fff;
+      cursor:pointer; pointer-events:all;
+      opacity:0; transition:opacity .15s; z-index:6;
+      box-shadow:0 1px 4px rgba(0,0,0,.2);
     }
-    .box:hover .color-btn { opacity: 1; }
+    .box:hover .color-btn { opacity:1; }
 
-    /* ── Color palette popup ── */
+    /* ── Delete button (top-right, outside) ── */
+    .del-btn {
+      position:absolute; top:-8px; right:-8px;
+      width:20px; height:20px;
+      background:#e03131; color:#fff;
+      border-radius:50%; border:2.5px solid #fff;
+      cursor:pointer; pointer-events:all;
+      font-size:13px; line-height:17px; text-align:center;
+      opacity:0; transition:opacity .15s; z-index:6;
+    }
+    .box:hover .del-btn { opacity:1; }
+    .del-btn:hover { background:#c92a2a; }
+
+    /* ── Content items ── */
+    .item { display:flex; align-items:flex-start; gap:6px; }
+
+    /* Checklist */
+    .item-check { align-items:center; }
+    .check-cb { flex-shrink:0; width:15px; height:15px; cursor:pointer; accent-color:#2f9e44; }
+    .check-text {
+      flex:1; outline:none; min-height:18px; line-height:1.4;
+      font-size:13px; color:inherit; background:none;
+      border-bottom:1px solid transparent; cursor:text;
+    }
+    .check-text:focus { border-bottom-color:#ccc; }
+    .check-text:empty::before { content:attr(data-ph); color:#bbb; pointer-events:none; }
+    .check-text.done { text-decoration:line-through; color:#aaa; }
+
+    /* Note */
+    .note-text {
+      flex:1; border:none; outline:none;
+      background:rgba(0,0,0,.04); border-radius:7px;
+      padding:6px 8px; font-size:13px; font-family:inherit;
+      color:inherit; resize:none; overflow:hidden;
+      min-height:52px; width:100%; cursor:text; line-height:1.5;
+    }
+
+    /* Link */
+    .link-inp {
+      flex:1; border:none; outline:1px solid #ddd; border-radius:6px;
+      padding:4px 7px; font-size:12px; font-family:inherit; cursor:text;
+    }
+    .link-a {
+      flex:1; font-size:12px; color:#1971c2;
+      text-decoration:underline; word-break:break-all; cursor:pointer;
+    }
+
+    /* Image */
+    .img-inp {
+      flex:1; border:none; outline:1px solid #ddd; border-radius:6px;
+      padding:4px 7px; font-size:12px; font-family:inherit; cursor:text;
+    }
+    .img-el { width:100%; border-radius:8px; display:block; max-height:130px; object-fit:cover; }
+
+    /* Delete item button */
+    .del-item {
+      border:none; background:none; color:#ccc;
+      cursor:pointer; font-size:15px; line-height:1;
+      padding:0 2px; flex-shrink:0; align-self:center;
+      opacity:0; transition:opacity .15s, color .1s;
+    }
+    .item:hover .del-item { opacity:1; }
+    .del-item:hover { color:#e03131; }
+
+    /* ── Color popup ── */
     #color-popup {
-      position: fixed;
-      background: rgba(255,255,255,0.97);
-      border-radius: 12px; padding: 8px 10px;
-      display: none; flex-wrap: wrap; gap: 7px; width: 118px;
-      box-shadow: 0 6px 24px rgba(0,0,0,0.3); z-index: 300;
+      position:fixed; background:rgba(255,255,255,.97); border-radius:12px;
+      padding:8px 10px; display:none; flex-wrap:wrap; gap:7px; width:118px;
+      box-shadow:0 6px 24px rgba(0,0,0,.3); z-index:300;
     }
     .c-swatch {
-      width: 26px; height: 26px; border-radius: 50%;
-      cursor: pointer; border: 2.5px solid transparent;
-      transition: transform 0.1s, border-color 0.1s;
-      flex-shrink: 0;
+      width:26px; height:26px; border-radius:50%;
+      cursor:pointer; border:2.5px solid transparent;
+      transition:transform .1s; flex-shrink:0;
     }
-    .c-swatch:hover { transform: scale(1.2); }
-    .c-swatch.selected { border-color: #222 !important; }
+    .c-swatch:hover { transform:scale(1.2); }
+    .c-swatch.selected { border-color:#222 !important; }
 
-    /* ── Legend (top-left) ── */
+    /* ── Legend ── */
     #legend {
-      position: fixed; top: 70px; left: 16px;
-      background: rgba(255,255,255,0.94);
-      border-radius: 14px; padding: 12px 16px; min-width: 160px;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.28);
-      z-index: 100; display: none;
+      position:fixed; top:70px; left:16px;
+      background:rgba(255,255,255,.94); border-radius:14px;
+      padding:12px 16px; min-width:160px;
+      box-shadow:0 4px 16px rgba(0,0,0,.28); z-index:100; display:none;
     }
-    #legend.visible { display: block; }
-    #legend-title {
-      font-size: 10px; font-weight: 700;
-      text-transform: uppercase; letter-spacing: .7px;
-      color: #888; margin-bottom: 10px;
-    }
-    .leg-row { display: flex; align-items: center; gap: 9px; margin-bottom: 6px; }
-    .leg-dot {
-      width: 13px; height: 13px; border-radius: 50%;
-      flex-shrink: 0; border: 1.5px solid rgba(0,0,0,0.12);
-    }
-    .leg-name {
-      font-size: 13px; font-weight: 500; color: #222;
-      cursor: text; padding: 2px 4px; border-radius: 4px;
-    }
-    .leg-name:hover { background: #f0f0f0; }
-    .leg-input {
-      border: none; outline: 1px solid #aaa; border-radius: 4px;
-      font-size: 13px; font-weight: 500; color: #222;
-      background: #f8f8f8; padding: 2px 4px;
-      width: 110px; font-family: inherit;
-    }
+    #legend.visible { display:block; }
+    #legend-title { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.7px; color:#888; margin-bottom:10px; }
+    .leg-row { display:flex; align-items:center; gap:9px; margin-bottom:6px; }
+    .leg-dot { width:13px; height:13px; border-radius:50%; flex-shrink:0; border:1.5px solid rgba(0,0,0,.12); }
+    .leg-name { font-size:13px; font-weight:500; color:#222; cursor:text; padding:2px 4px; border-radius:4px; }
+    .leg-name:hover { background:#f0f0f0; }
+    .leg-input { border:none; outline:1px solid #aaa; border-radius:4px; font-size:13px; font-weight:500; color:#222; background:#f8f8f8; padding:2px 4px; width:110px; font-family:inherit; }
 
     /* ── Toolbar ── */
-    #toolbar {
-      position: fixed; top: 18px; left: 50%; transform: translateX(-50%);
-      display: flex; gap: 10px; z-index: 100;
-    }
-    #toolbar button {
-      padding: 9px 22px; border: none; border-radius: 10px;
-      background: #ffffffee; cursor: pointer;
-      font-size: 14px; font-weight: 600; color: #111;
-      box-shadow: 0 3px 10px rgba(0,0,0,0.3); transition: background 0.15s;
-    }
-    #toolbar button:hover { background: #f0f0f0; }
+    #toolbar { position:fixed; top:18px; left:50%; transform:translateX(-50%); display:flex; gap:10px; z-index:100; }
+    #toolbar button { padding:9px 22px; border:none; border-radius:10px; background:#ffffffee; cursor:pointer; font-size:14px; font-weight:600; color:#111; box-shadow:0 3px 10px rgba(0,0,0,.3); transition:background .15s; }
+    #toolbar button:hover { background:#f0f0f0; }
 
     /* ── Hint ── */
-    #hint {
-      position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%);
-      background: rgba(0,0,0,0.55); color: #fff;
-      padding: 8px 18px; border-radius: 10px;
-      font-size: 13px; pointer-events: none; white-space: nowrap;
-    }
+    #hint { position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,.55); color:#fff; padding:8px 18px; border-radius:10px; font-size:13px; pointer-events:none; white-space:nowrap; }
 
-    /* ── Inline input ── */
-    .box-input {
-      border: none; outline: none; background: transparent;
-      font-size: 14px; font-weight: 500;
-      width: 100%; text-align: center;
-      font-family: inherit; cursor: text;
-    }
+    /* ── Inline rename input ── */
+    .box-input { border:none; outline:none; background:transparent; font-size:14px; font-weight:500; width:100%; text-align:center; font-family:inherit; cursor:text; }
   </style>
 </head>
 <body>
@@ -180,14 +218,10 @@
 <div id="canvas">
   <svg id="svg-layer">
     <defs>
-      <!-- Arrow at target end (child) -->
-      <marker id="arrow" markerWidth="10" markerHeight="7"
-              refX="9" refY="3.5" orient="auto">
+      <marker id="arrow" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
         <polygon points="0 0,10 3.5,0 7" fill="#ffffff"/>
       </marker>
-      <!-- Filled circle at source end (parent / container) -->
-      <marker id="dot-start" markerWidth="8" markerHeight="8"
-              refX="4" refY="4" orient="auto">
+      <marker id="dot-start" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto">
         <circle cx="4" cy="4" r="3.2" fill="#ffffff"/>
       </marker>
     </defs>
@@ -204,44 +238,30 @@
 <div id="hint">Clicca "＋ Box" per aggiungere un box</div>
 
 <script>
-  const canvas      = document.getElementById('canvas');
-  const svgLayer    = document.getElementById('svg-layer');
-  const btnAdd      = document.getElementById('btn-add');
-  const hint        = document.getElementById('hint');
-  const legend      = document.getElementById('legend');
-  const legEntries  = document.getElementById('legend-entries');
-  const colorPopup  = document.getElementById('color-popup');
+  const canvas     = document.getElementById('canvas');
+  const svgLayer   = document.getElementById('svg-layer');
+  const btnAdd     = document.getElementById('btn-add');
+  const hint       = document.getElementById('hint');
+  const legend     = document.getElementById('legend');
+  const legEntries = document.getElementById('legend-entries');
+  const colorPopup = document.getElementById('color-popup');
 
   /* ── Palette ── */
   const PALETTE = [
-    { id: 'none',   bg: '#ffffff', border: '#cccccc', text: '#111', dot: '#cccccc' },
-    { id: 'red',    bg: '#ffe4e4', border: '#e03131', text: '#6b1111', dot: '#e03131' },
-    { id: 'orange', bg: '#fff0d4', border: '#d9480f', text: '#6b2800', dot: '#d9480f' },
-    { id: 'yellow', bg: '#fffcd0', border: '#c9960a', text: '#5c4000', dot: '#c9960a' },
-    { id: 'green',  bg: '#ddfae5', border: '#2f9e44', text: '#164d22', dot: '#2f9e44' },
-    { id: 'blue',   bg: '#dbeafe', border: '#1971c2', text: '#0a2f60', dot: '#1971c2' },
-    { id: 'purple', bg: '#f3e8ff', border: '#7c3aed', text: '#380870', dot: '#7c3aed' },
+    { id:'none',   bg:'#ffffff', border:'#cccccc', text:'#111', dot:'#cccccc' },
+    { id:'red',    bg:'#ffe4e4', border:'#e03131', text:'#6b1111', dot:'#e03131' },
+    { id:'orange', bg:'#fff0d4', border:'#d9480f', text:'#6b2800', dot:'#d9480f' },
+    { id:'yellow', bg:'#fffcd0', border:'#c9960a', text:'#5c4000', dot:'#c9960a' },
+    { id:'green',  bg:'#ddfae5', border:'#2f9e44', text:'#164d22', dot:'#2f9e44' },
+    { id:'blue',   bg:'#dbeafe', border:'#1971c2', text:'#0a2f60', dot:'#1971c2' },
+    { id:'purple', bg:'#f3e8ff', border:'#7c3aed', text:'#380870', dot:'#7c3aed' },
   ];
+  const catNames = { red:'Categoria A', orange:'Categoria B', yellow:'Categoria C', green:'Categoria D', blue:'Categoria E', purple:'Categoria F' };
 
-  /* Editable category names */
-  const catNames = {
-    red:    'Categoria A',
-    orange: 'Categoria B',
-    yellow: 'Categoria C',
-    green:  'Categoria D',
-    blue:   'Categoria E',
-    purple: 'Categoria F',
-  };
-
-  let boxes       = [];
-  let connections = [];
-  let boxCount    = 0;
-  let mode        = 'idle';   // 'idle' | 'connect-drawing'
-  let connectSrc  = null;
-  let tempPath    = null;
-  let dragState   = null;
-  let resizeState = null;
-  let mousePos    = { x: 0, y: 0 };
+  let boxes = [], connections = [], boxCount = 0;
+  let mode = 'idle', connectSrc = null, tempPath = null;
+  let dragState = null, resizeState = null;
+  let mousePos = { x:0, y:0 };
 
   /* ── Geometry ── */
   function handlePoint(box, side) {
@@ -249,29 +269,25 @@
     const w = box.offsetWidth, h = box.offsetHeight;
     return { top:{x:l+w/2,y:t}, bottom:{x:l+w/2,y:t+h}, left:{x:l,y:t+h/2}, right:{x:l+w,y:t+h/2} }[side];
   }
-
   function nearestSide(box, pt) {
     const l=parseFloat(box.style.left), t=parseFloat(box.style.top);
     const cx=l+box.offsetWidth/2, cy=t+box.offsetHeight/2;
     const dx=pt.x-cx, dy=pt.y-cy;
     return Math.abs(dx)>=Math.abs(dy) ? (dx>0?'right':'left') : (dy>0?'bottom':'top');
   }
-
   function opposite(s) { return {top:'bottom',bottom:'top',left:'right',right:'left'}[s]; }
-
   function ctrlPt(p, side, dist) {
     const d = Math.max(dist, 60);
     return { top:{x:p.x,y:p.y-d}, bottom:{x:p.x,y:p.y+d}, left:{x:p.x-d,y:p.y}, right:{x:p.x+d,y:p.y} }[side];
   }
-
   function bezierPath(p1, s1, p2, s2) {
     const d = Math.hypot(p2.x-p1.x, p2.y-p1.y) * 0.45;
-    const c1 = ctrlPt(p1, s1, d), c2 = ctrlPt(p2, s2, d);
+    const c1 = ctrlPt(p1,s1,d), c2 = ctrlPt(p2,s2,d);
     return `M${p1.x},${p1.y} C${c1.x},${c1.y} ${c2.x},${c2.y} ${p2.x},${p2.y}`;
   }
 
-  /* ── Color system ── */
-  function paletteById(id) { return PALETTE.find(p => p.id === id) || PALETTE[0]; }
+  /* ── Colors ── */
+  function paletteById(id) { return PALETTE.find(p=>p.id===id) || PALETTE[0]; }
 
   function applyColor(box, colorId) {
     const c = paletteById(colorId);
@@ -287,18 +303,15 @@
   }
 
   function updateLegend() {
-    const activeIds = [...new Set(
-      boxes.map(b => b.dataset.colorId).filter(id => id && id !== 'none')
-    )];
-    if (activeIds.length === 0) { legend.classList.remove('visible'); return; }
+    const activeIds = [...new Set(boxes.map(b=>b.dataset.colorId).filter(id=>id&&id!=='none'))];
+    if (!activeIds.length) { legend.classList.remove('visible'); return; }
     legend.classList.add('visible');
     legEntries.innerHTML = '';
     activeIds.forEach(id => {
       const c = paletteById(id);
       const row  = document.createElement('div'); row.className = 'leg-row';
       const dot  = document.createElement('div'); dot.className = 'leg-dot';
-      dot.style.background  = c.dot;
-      dot.style.borderColor = c.border;
+      dot.style.background = c.dot; dot.style.borderColor = c.border;
       const name = document.createElement('span'); name.className = 'leg-name';
       name.textContent = catNames[id] || id;
       name.title = 'Doppio clic per rinominare';
@@ -310,25 +323,23 @@
 
   function editLegendName(nameEl, colorId) {
     const prev = nameEl.textContent;
-    const input = document.createElement('input');
-    input.type = 'text'; input.className = 'leg-input'; input.value = prev;
-    nameEl.replaceWith(input);
-    input.focus(); input.select();
+    const inp = document.createElement('input'); inp.type='text'; inp.className='leg-input'; inp.value=prev;
+    nameEl.replaceWith(inp); inp.focus(); inp.select();
     const commit = () => {
-      const val = input.value.trim() || prev;
+      const val = inp.value.trim() || prev;
       catNames[colorId] = val;
-      const span = document.createElement('span'); span.className = 'leg-name';
-      span.textContent = val; span.title = 'Doppio clic per rinominare';
+      const span = document.createElement('span'); span.className='leg-name';
+      span.textContent = val; span.title='Doppio clic per rinominare';
       span.addEventListener('dblclick', e => { e.stopPropagation(); editLegendName(span, colorId); });
-      input.replaceWith(span);
+      inp.replaceWith(span);
     };
-    input.addEventListener('blur', commit);
-    input.addEventListener('keydown', e => {
-      if (e.key === 'Enter')  { e.preventDefault(); input.blur(); }
-      if (e.key === 'Escape') { input.value = prev; input.blur(); }
+    inp.addEventListener('blur', commit);
+    inp.addEventListener('keydown', e => {
+      if (e.key==='Enter')  { e.preventDefault(); inp.blur(); }
+      if (e.key==='Escape') { inp.value=prev; inp.blur(); }
       e.stopPropagation();
     });
-    input.addEventListener('mousedown', e => e.stopPropagation());
+    inp.addEventListener('mousedown', e => e.stopPropagation());
   }
 
   /* ── Color popup ── */
@@ -338,15 +349,11 @@
     colorPopup.innerHTML = '';
     PALETTE.forEach(c => {
       const sw = document.createElement('div');
-      sw.className = 'c-swatch' + (c.id === currentId ? ' selected' : '');
-      sw.style.background  = c.dot;
-      sw.style.borderColor = c.id === currentId ? '#222' : 'transparent';
-      sw.title = c.id === 'none' ? 'Nessuna etichetta' : (catNames[c.id] || c.id);
-      sw.addEventListener('mousedown', e => {
-        e.stopPropagation();
-        applyColor(box, c.id);
-        closePopup();
-      });
+      sw.className = 'c-swatch' + (c.id===currentId ? ' selected' : '');
+      sw.style.background = c.dot;
+      sw.style.borderColor = c.id===currentId ? '#222' : 'transparent';
+      sw.title = c.id==='none' ? 'Nessuna etichetta' : (catNames[c.id] || c.id);
+      sw.addEventListener('mousedown', e => { e.stopPropagation(); applyColor(box, c.id); closePopup(); });
       colorPopup.appendChild(sw);
     });
     const r = btnEl.getBoundingClientRect();
@@ -354,64 +361,191 @@
     colorPopup.style.left = `${r.left - 36}px`;
     colorPopup.style.top  = `${r.bottom + 6}px`;
   }
-
   function closePopup() { colorPopup.style.display = 'none'; }
+
+  /* ── Content items ── */
+  function makeDelItem(item) {
+    const btn = document.createElement('button'); btn.className = 'del-item'; btn.textContent = '×';
+    btn.addEventListener('mousedown', e => e.stopPropagation());
+    btn.addEventListener('click', e => { e.stopPropagation(); item.remove(); requestAnimationFrame(redrawConnections); });
+    return btn;
+  }
+
+  function addItem(box, type) {
+    const container = box.querySelector('.box-items');
+    const item = document.createElement('div'); item.className = `item item-${type}`;
+
+    if (type === 'check') {
+      const cb   = document.createElement('input'); cb.type='checkbox'; cb.className='check-cb';
+      const text = document.createElement('span');  text.className='check-text'; text.contentEditable='true'; text.dataset.ph='Elemento lista...';
+      cb.addEventListener('change', () => text.classList.toggle('done', cb.checked));
+      text.addEventListener('keydown', e => { if (e.key==='Enter') { e.preventDefault(); addItem(box,'check'); } e.stopPropagation(); });
+      text.addEventListener('mousedown', e => e.stopPropagation());
+      item.append(cb, text, makeDelItem(item));
+      container.appendChild(item);
+      requestAnimationFrame(() => text.focus());
+
+    } else if (type === 'note') {
+      const ta = document.createElement('textarea'); ta.className='note-text'; ta.placeholder='Scrivi una nota...';
+      const autoH = () => { ta.style.height='auto'; ta.style.height=ta.scrollHeight+'px'; requestAnimationFrame(redrawConnections); };
+      ta.addEventListener('input', autoH);
+      ta.addEventListener('mousedown', e => e.stopPropagation());
+      ta.addEventListener('keydown', e => e.stopPropagation());
+      item.append(ta, makeDelItem(item));
+      container.appendChild(item);
+      requestAnimationFrame(() => { ta.focus(); autoH(); });
+
+    } else if (type === 'link') {
+      const inp = document.createElement('input'); inp.type='url'; inp.className='link-inp'; inp.placeholder='https://...';
+      inp.addEventListener('mousedown', e => e.stopPropagation());
+      inp.addEventListener('keydown', e => {
+        if (e.key === 'Enter') {
+          const url = inp.value.trim();
+          if (url) {
+            const a = document.createElement('a'); a.className='link-a';
+            a.href=url; a.target='_blank'; a.rel='noopener noreferrer'; a.textContent=url;
+            a.addEventListener('mousedown', e => e.stopPropagation());
+            inp.replaceWith(a);
+          }
+          e.preventDefault();
+        }
+        e.stopPropagation();
+      });
+      item.append(inp, makeDelItem(item));
+      container.appendChild(item);
+      requestAnimationFrame(() => inp.focus());
+
+    } else if (type === 'image') {
+      const inp = document.createElement('input'); inp.type='url'; inp.className='img-inp'; inp.placeholder='URL immagine...';
+      inp.addEventListener('mousedown', e => e.stopPropagation());
+      inp.addEventListener('keydown', e => {
+        if (e.key === 'Enter') {
+          const url = inp.value.trim();
+          if (url) {
+            const img = document.createElement('img'); img.className='img-el'; img.src=url; img.alt='';
+            img.addEventListener('load', () => requestAnimationFrame(redrawConnections));
+            img.addEventListener('mousedown', e => e.stopPropagation());
+            inp.replaceWith(img);
+          }
+          e.preventDefault();
+        }
+        e.stopPropagation();
+      });
+      item.append(inp, makeDelItem(item));
+      container.appendChild(item);
+      requestAnimationFrame(() => inp.focus());
+    }
+
+    requestAnimationFrame(redrawConnections);
+  }
+
+  /* ── Expand / collapse ── */
+  function toggleExpand(box) {
+    box.classList.toggle('expanded');
+    const icon = box.querySelector('.expand-icon');
+    if (box.classList.contains('expanded')) {
+      icon.textContent = '▲';
+      if (box.offsetWidth < 240) box.style.width = '240px';
+    } else {
+      icon.textContent = '▼';
+    }
+    requestAnimationFrame(redrawConnections);
+  }
+
+  /* ── Delete box ── */
+  function deleteBox(box) {
+    connections = connections.filter(c => {
+      if (c.from === box || c.to === box) { c.el.remove(); return false; }
+      return true;
+    });
+    boxes = boxes.filter(b => b !== box);
+    box.remove();
+    updateLegend();
+    updateHint();
+  }
 
   /* ── Create box ── */
   function createBox(x, y) {
     boxCount++;
-    const box = document.createElement('div');
-    box.className = 'box';
-    box.id = `box-${boxCount}`;
-    box.style.left = `${x - 70}px`;
-    box.style.top  = `${y - 32}px`;
+    const box = document.createElement('div'); box.className='box'; box.id=`box-${boxCount}`;
+    box.style.left = `${x-70}px`; box.style.top = `${y-32}px`;
     box.dataset.colorId = 'none';
-
-    const label = document.createElement('span');
-    label.textContent = `Box ${boxCount}`;
-    box.appendChild(label);
 
     /* Connection handles */
     ['top','right','bottom','left'].forEach(side => {
-      const h = document.createElement('div');
-      h.className = `handle ${side}`;
+      const h = document.createElement('div'); h.className=`handle ${side}`;
       h.addEventListener('mousedown', e => { e.stopPropagation(); e.preventDefault(); startDrawing(box, side); });
       box.appendChild(h);
     });
 
-    /* Resize handle */
-    const rh = document.createElement('div'); rh.className = 'resize-handle';
+    /* Color button (top-left, outside) */
+    const cb = document.createElement('div'); cb.className='color-btn'; cb.title='Etichetta colore';
+    cb.addEventListener('mousedown', e => { e.stopPropagation(); e.preventDefault(); showColorPopup(box, cb); });
+    box.appendChild(cb);
+
+    /* Delete button (top-right, outside) */
+    const db = document.createElement('div'); db.className='del-btn'; db.textContent='×'; db.title='Elimina box';
+    db.addEventListener('mousedown', e => { e.stopPropagation(); e.preventDefault(); });
+    db.addEventListener('click', e => { e.stopPropagation(); deleteBox(box); });
+    box.appendChild(db);
+
+    /* Header */
+    const header = document.createElement('div'); header.className='box-header';
+    const label  = document.createElement('span'); label.textContent=`Box ${boxCount}`;
+    header.appendChild(label);
+    box.appendChild(header);
+
+    /* Body */
+    const body   = document.createElement('div'); body.className='box-body';
+    const items  = document.createElement('div'); items.className='box-items';
+    const addBar = document.createElement('div'); addBar.className='box-add-bar';
+    [['check','☑ Lista'],['note','📝 Nota'],['link','🔗 Link'],['image','🖼 Img']].forEach(([type, lbl]) => {
+      const btn = document.createElement('button'); btn.className='add-type-btn'; btn.textContent=lbl;
+      btn.addEventListener('mousedown', e => e.stopPropagation());
+      btn.addEventListener('click', e => { e.stopPropagation(); addItem(box, type); });
+      addBar.appendChild(btn);
+    });
+    body.append(items, addBar);
+    box.appendChild(body);
+
+    /* Footer */
+    const footer = document.createElement('div'); footer.className='box-footer';
+
+    const et   = document.createElement('div'); et.className='expand-toggle';
+    const icon = document.createElement('span'); icon.className='expand-icon'; icon.textContent='▼';
+    et.appendChild(icon);
+    et.addEventListener('mousedown', e => { e.stopPropagation(); e.preventDefault(); });
+    et.addEventListener('click', e => { e.stopPropagation(); toggleExpand(box); });
+
+    const rh = document.createElement('div'); rh.className='resize-handle';
     rh.addEventListener('mousedown', e => {
       e.stopPropagation(); e.preventDefault();
       resizeState = { box, startX:e.clientX, startY:e.clientY, startW:box.offsetWidth, startH:box.offsetHeight };
     });
-    box.appendChild(rh);
 
-    /* Color button */
-    const cb = document.createElement('div'); cb.className = 'color-btn';
-    cb.title = 'Cambia etichetta colore';
-    cb.addEventListener('mousedown', e => { e.stopPropagation(); e.preventDefault(); showColorPopup(box, cb); });
-    box.appendChild(cb);
+    footer.append(et, rh);
+    box.appendChild(footer);
 
     /* Drag */
     box.addEventListener('mousedown', e => {
       if (mode !== 'idle') return;
-      if (e.target.classList.contains('handle')) return;
-      if (e.target.classList.contains('resize-handle')) return;
-      if (e.target.classList.contains('color-btn')) return;
-      if (box.querySelector('input')) return;
+      const skip = ['handle','resize-handle','color-btn','del-btn','expand-toggle','expand-icon','add-type-btn','check-cb','del-item'];
+      if (skip.some(cls => e.target.classList.contains(cls))) return;
+      if (['INPUT','TEXTAREA','A'].includes(e.target.tagName)) return;
+      if (e.target.contentEditable === 'true') return;
+      /* In expanded mode only allow drag from header */
+      if (box.classList.contains('expanded') && !header.contains(e.target)) return;
       closePopup();
       const rect = canvas.getBoundingClientRect();
-      dragState = { box, ox: e.clientX-rect.left-parseFloat(box.style.left), oy: e.clientY-rect.top-parseFloat(box.style.top) };
+      dragState = { box, ox:e.clientX-rect.left-parseFloat(box.style.left), oy:e.clientY-rect.top-parseFloat(box.style.top) };
       box.style.zIndex = 10;
       e.preventDefault();
     });
 
-    /* Double-click rename */
+    /* Double-click rename (header only) */
     box.addEventListener('dblclick', e => {
-      if (e.target.classList.contains('handle')) return;
-      if (e.target.classList.contains('resize-handle')) return;
-      if (e.target.classList.contains('color-btn')) return;
+      if (!header.contains(e.target)) return;
+      if (['color-btn','del-btn'].some(cls => e.target.classList.contains(cls))) return;
       startEditing(box);
     });
 
@@ -428,49 +562,45 @@
   /* ── Inline rename ── */
   function startEditing(box) {
     if (mode !== 'idle') return;
-    const labelEl = box.querySelector('span');
-    if (!labelEl) return;
+    const labelEl = box.querySelector('.box-header span'); if (!labelEl) return;
     const prev = labelEl.textContent;
-    const input = document.createElement('input');
-    input.type = 'text'; input.className = 'box-input';
-    input.value = prev;
-    input.style.color = box.style.color || '#111';
-    labelEl.replaceWith(input);
-    box.style.cursor = 'text';
-    input.focus(); input.select();
+    const inp  = document.createElement('input'); inp.type='text'; inp.className='box-input';
+    inp.value = prev; inp.style.color = box.style.color || '#111';
+    labelEl.replaceWith(inp); box.style.cursor = 'text';
+    inp.focus(); inp.select();
     const commit = () => {
-      const val = input.value.trim() || prev;
+      const val  = inp.value.trim() || prev;
       const span = document.createElement('span'); span.textContent = val;
-      input.replaceWith(span);
-      box.style.cursor = '';
+      inp.replaceWith(span); box.style.cursor = '';
       requestAnimationFrame(redrawConnections);
     };
-    input.addEventListener('blur', commit);
-    input.addEventListener('keydown', e => {
-      if (e.key === 'Enter')  { e.preventDefault(); input.blur(); }
-      if (e.key === 'Escape') { input.value = prev; input.blur(); }
+    inp.addEventListener('blur', commit);
+    inp.addEventListener('keydown', e => {
+      if (e.key==='Enter')  { e.preventDefault(); inp.blur(); }
+      if (e.key==='Escape') { inp.value=prev; inp.blur(); }
       e.stopPropagation();
     });
-    input.addEventListener('mousedown', e => e.stopPropagation());
+    inp.addEventListener('mousedown', e => e.stopPropagation());
   }
 
   /* ── Mouse events ── */
   document.addEventListener('mousemove', e => {
     const rect = canvas.getBoundingClientRect();
-    mousePos = { x: e.clientX-rect.left, y: e.clientY-rect.top };
+    mousePos = { x:e.clientX-rect.left, y:e.clientY-rect.top };
 
     if (dragState) {
       dragState.box.style.left = `${mousePos.x - dragState.ox}px`;
       dragState.box.style.top  = `${mousePos.y - dragState.oy}px`;
       redrawConnections();
     }
-
     if (resizeState) {
-      resizeState.box.style.width  = `${Math.max(80,  resizeState.startW + e.clientX - resizeState.startX)}px`;
-      resizeState.box.style.height = `${Math.max(40, resizeState.startH + e.clientY - resizeState.startY)}px`;
+      const dw = e.clientX - resizeState.startX;
+      const dh = e.clientY - resizeState.startY;
+      resizeState.box.style.width = `${Math.max(120, resizeState.startW+dw)}px`;
+      if (!resizeState.box.classList.contains('expanded'))
+        resizeState.box.style.height = `${Math.max(40, resizeState.startH+dh)}px`;
       redrawConnections();
     }
-
     if (mode === 'connect-drawing' && tempPath) {
       const p1 = handlePoint(connectSrc.box, connectSrc.side);
       tempPath.setAttribute('d', bezierPath(p1, connectSrc.side, mousePos, opposite(connectSrc.side)));
@@ -478,11 +608,10 @@
   });
 
   document.addEventListener('mouseup', () => {
-    if (dragState)   { dragState.box.style.zIndex = ''; dragState = null; }
-    if (resizeState) { resizeState = null; }
+    if (dragState)   { dragState.box.style.zIndex=''; dragState=null; }
+    if (resizeState) { resizeState=null; }
   });
 
-  /* Close popup on outside click */
   document.addEventListener('mousedown', e => {
     if (!colorPopup.contains(e.target) && !e.target.classList.contains('color-btn')) closePopup();
   });
@@ -490,8 +619,7 @@
   /* ── Connections ── */
   function startDrawing(box, side) {
     if (mode === 'connect-drawing') cancelConnect();
-    mode = 'connect-drawing';
-    connectSrc = { box, side };
+    mode='connect-drawing'; connectSrc={box,side};
     box.classList.add('source-selected');
     tempPath = document.createElementNS('http://www.w3.org/2000/svg','path');
     tempPath.setAttribute('stroke','rgba(255,255,255,0.7)');
@@ -503,32 +631,25 @@
   }
 
   function finishConnection(targetBox) {
-    if (tempPath) { svgLayer.removeChild(tempPath); tempPath = null; }
+    if (tempPath) { svgLayer.removeChild(tempPath); tempPath=null; }
     connectSrc.box.classList.remove('source-selected');
-
     const srcPt  = handlePoint(connectSrc.box, connectSrc.side);
     const toSide = nearestSide(targetBox, srcPt);
-
-    const pathEl = document.createElementNS('http://www.w3.org/2000/svg','path');
-    pathEl.setAttribute('stroke','#ffffff');
-    pathEl.setAttribute('stroke-width','2.5');
-    pathEl.setAttribute('fill','none');
-    pathEl.setAttribute('marker-start','url(#dot-start)');  /* ◉ = contenitore */
-    pathEl.setAttribute('marker-end','url(#arrow)');         /* → = contenuto   */
-    svgLayer.insertBefore(pathEl, svgLayer.firstChild);
-
-    connections.push({ from:connectSrc.box, fromSide:connectSrc.side, to:targetBox, toSide, el:pathEl });
-    connectSrc = null;
-    mode = 'idle';
-    redrawConnections();
-    updateHint();
+    const el = document.createElementNS('http://www.w3.org/2000/svg','path');
+    el.setAttribute('stroke','#ffffff');
+    el.setAttribute('stroke-width','2.5');
+    el.setAttribute('fill','none');
+    el.setAttribute('marker-start','url(#dot-start)');
+    el.setAttribute('marker-end','url(#arrow)');
+    svgLayer.insertBefore(el, svgLayer.firstChild);
+    connections.push({ from:connectSrc.box, fromSide:connectSrc.side, to:targetBox, toSide, el });
+    connectSrc=null; mode='idle'; redrawConnections(); updateHint();
   }
 
   function cancelConnect() {
-    if (tempPath)   { svgLayer.removeChild(tempPath); tempPath = null; }
-    if (connectSrc) { connectSrc.box.classList.remove('source-selected'); connectSrc = null; }
-    mode = 'idle';
-    updateHint();
+    if (tempPath) { svgLayer.removeChild(tempPath); tempPath=null; }
+    if (connectSrc) { connectSrc.box.classList.remove('source-selected'); connectSrc=null; }
+    mode='idle'; updateHint();
   }
 
   function redrawConnections() {
@@ -543,27 +664,20 @@
   function updateHint() {
     if (mode === 'connect-drawing') {
       hint.textContent = '◉ = contenitore  →  clicca il box contenuto  •  Esc per annullare';
-    } else if (boxes.length === 0) {
+    } else if (!boxes.length) {
       hint.textContent = 'Clicca "＋ Box" per aggiungere un box';
     } else {
-      hint.textContent = 'Trascina • Doppio clic = rinomina • Pallini arancioni = freccia gerarchica • Cerchio colorato = etichetta';
+      hint.textContent = 'Trascina • Doppio clic = rinomina • 🟠 pallini = collega • ● = etichetta • × = elimina • ▼ = espandi';
     }
   }
 
-  /* ── Toolbar ── */
+  /* ── Toolbar / keyboard ── */
   btnAdd.addEventListener('click', () => {
     if (mode !== 'idle') cancelConnect();
-    createBox(
-      canvas.offsetWidth  / 2 + (Math.random()-0.5) * 300,
-      canvas.offsetHeight / 2 + (Math.random()-0.5) * 200
-    );
+    createBox(canvas.offsetWidth/2 + (Math.random()-.5)*300, canvas.offsetHeight/2 + (Math.random()-.5)*200);
   });
-
-  document.addEventListener('keydown', e => { if (e.key === 'Escape' && mode !== 'idle') cancelConnect(); });
-
-  canvas.addEventListener('mousedown', e => {
-    if (mode === 'connect-drawing' && (e.target === canvas || e.target === svgLayer)) cancelConnect();
-  });
+  document.addEventListener('keydown', e => { if (e.key==='Escape' && mode!=='idle') cancelConnect(); });
+  canvas.addEventListener('mousedown', e => { if (mode==='connect-drawing' && (e.target===canvas||e.target===svgLayer)) cancelConnect(); });
 </script>
 </body>
 </html>
