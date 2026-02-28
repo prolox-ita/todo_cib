@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mod Dev Tracker</title>
+  <style>
+    /* ── Reset ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* ── Typography ── */
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+        "Helvetica Neue", Arial, sans-serif;
+      font-size: 14px;
+      color: #172B4D;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── App header (navbar) ── */
+    #app-header {
+      height: 44px;
+      background: rgba(0, 0, 0, 0.24);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 8px;
+      flex-shrink: 0;
+      position: relative;
+      z-index: 100;
+    }
+
+    .header-logo {
+      color: #fff;
+      font-size: 20px;
+      font-weight: 900;
+      letter-spacing: -1px;
+      padding: 4px 8px;
+      border-radius: 3px;
+      transition: background 0.1s;
+      cursor: pointer;
+      user-select: none;
+    }
+    .header-logo:hover { background: rgba(255,255,255,0.2); }
+
+    .header-separator {
+      color: rgba(255,255,255,0.5);
+      font-size: 18px;
+      font-weight: 100;
+    }
+
+    .header-board-name {
+      color: #fff;
+      font-size: 15px;
+      font-weight: 700;
+      padding: 4px 8px;
+      border-radius: 3px;
+      cursor: pointer;
+      transition: background 0.1s;
+    }
+    .header-board-name:hover { background: rgba(255,255,255,0.2); }
+
+    .header-spacer { flex: 1; }
+
+    .header-btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(255,255,255,0.2);
+      color: #fff;
+      border: none;
+      border-radius: 3px;
+      padding: 0 12px;
+      height: 32px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.1s;
+      white-space: nowrap;
+    }
+    .header-btn:hover { background: rgba(255,255,255,0.3); }
+
+    /* ── Board background ── */
+    #board {
+      flex: 1;
+      background: #0079BF;  /* Trello classic board blue */
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* ── Board inner (scrollable canvas) ── */
+    #board-canvas {
+      position: absolute;
+      inset: 0;
+      overflow: auto;
+      padding: 12px 8px;
+      /* custom scrollbar */
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255,255,255,0.3) transparent;
+    }
+    #board-canvas::-webkit-scrollbar { width: 8px; height: 8px; }
+    #board-canvas::-webkit-scrollbar-track { background: transparent; }
+    #board-canvas::-webkit-scrollbar-thumb {
+      background: rgba(255,255,255,0.3);
+      border-radius: 4px;
+    }
+
+    /* ── Toolbar below header ── */
+    #board-toolbar {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 40px;
+      background: rgba(0, 0, 0, 0.15);
+      display: flex;
+      align-items: center;
+      padding: 0 8px;
+      gap: 8px;
+      z-index: 50;
+    }
+
+    .toolbar-btn {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      background: rgba(255,255,255,0.2);
+      color: #fff;
+      border: none;
+      border-radius: 3px;
+      padding: 0 10px;
+      height: 28px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.1s;
+    }
+    .toolbar-btn:hover { background: rgba(255,255,255,0.3); }
+    .toolbar-btn svg { width: 14px; height: 14px; fill: currentColor; }
+
+    .toolbar-separator {
+      width: 1px;
+      height: 20px;
+      background: rgba(255,255,255,0.3);
+    }
+
+    #board-canvas-inner {
+      position: relative;
+      min-width: 100%;
+      min-height: calc(100vh - 44px - 40px);
+      /* extra space for large trees */
+      width: 4000px;
+      height: 3000px;
+    }
+
+    /* ── Empty state ── */
+    #empty-state {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      color: rgba(255,255,255,0.7);
+      pointer-events: none;
+    }
+    #empty-state .empty-icon {
+      font-size: 48px;
+      margin-bottom: 12px;
+    }
+    #empty-state h2 {
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 6px;
+      color: rgba(255,255,255,0.9);
+    }
+    #empty-state p {
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ═══ App Header ═══ -->
+  <header id="app-header">
+    <span class="header-logo">&#9776;</span>
+    <span class="header-logo" style="font-size:16px">&#9733; Trello</span>
+    <span class="header-separator">/</span>
+    <span class="header-board-name">Mod Dev Tracker</span>
+    <div class="header-spacer"></div>
+    <button class="header-btn">
+      <svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:currentColor">
+        <path d="M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
+      </svg>
+      Info
+    </button>
+    <button class="header-btn">
+      <svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:currentColor">
+        <path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/>
+      </svg>
+      Membro
+    </button>
+  </header>
+
+  <!-- ═══ Board ═══ -->
+  <main id="board">
+
+    <!-- Toolbar -->
+    <div id="board-toolbar">
+      <button class="toolbar-btn">
+        <svg viewBox="0 0 24 24"><path d="M12 5v14m-7-7h14"/></svg>
+        Aggiungi nodo radice
+      </button>
+      <div class="toolbar-separator"></div>
+      <button class="toolbar-btn">
+        <svg viewBox="0 0 24 24"><path d="M3 3h18v4H3zM3 10h12v4H3zM3 17h8v4H3z"/></svg>
+        Layout automatico
+      </button>
+      <button class="toolbar-btn">
+        <svg viewBox="0 0 24 24"><path d="M15 3l6 6-6 6M9 21l-6-6 6-6"/></svg>
+        Mostra connessioni
+      </button>
+      <div class="toolbar-separator"></div>
+      <button class="toolbar-btn">
+        <svg viewBox="0 0 24 24"><path d="M21 21l-4.35-4.35M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z"/></svg>
+        Cerca
+      </button>
+      <div style="margin-left:auto; display:flex; gap:8px;">
+        <button class="toolbar-btn">
+          <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+          Zoom +
+        </button>
+        <button class="toolbar-btn">
+          <svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg>
+          Zoom -
+        </button>
+        <button class="toolbar-btn">
+          <svg viewBox="0 0 24 24"><path d="M3 3l18 18M3 21L21 3"/></svg>
+          Reset
+        </button>
+      </div>
+    </div>
+
+    <!-- Canvas -->
+    <div id="board-canvas" style="top:40px; bottom:0; position:absolute; left:0; right:0;">
+      <div id="board-canvas-inner">
+        <!-- nodes will be injected here -->
+
+        <!-- Empty state placeholder -->
+        <div id="empty-state">
+          <div class="empty-icon">&#127918;</div>
+          <h2>Nessun nodo ancora</h2>
+          <p>Clicca "Aggiungi nodo radice" per iniziare a costruire il tuo albero</p>
+        </div>
+
+      </div>
+    </div>
+
+  </main>
+
+</body>
+</html>
